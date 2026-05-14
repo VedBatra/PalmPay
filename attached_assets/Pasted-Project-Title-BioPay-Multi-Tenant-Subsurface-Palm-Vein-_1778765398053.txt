@@ -1,0 +1,63 @@
+Project Title: BioPay – Multi-Tenant Subsurface Palm Vein Biometric Payment System
+
+Objective:
+Build a professional, full-stack web ecosystem for a biometric payment solution. The system must support three distinct roles: Users (customers), Merchants (shopkeepers), and System Administrators. It features a digital wallet for users, an earnings ledger for merchants, and a secure API for a Raspberry Pi NoIR camera hardware client.
+
+Technical Stack:
+
+Backend: Node.js with Express.js.
+
+Database: MySQL (using mysql2 or Sequelize).
+
+Real-time Communication: Socket.io (to link the Shopkeeper's POS, the Raspberry Pi, and the User's dashboard).
+
+Payments: Razorpay Node.js SDK for wallet top-ups.
+
+Security: bcrypt for passwords, crypto for biometric hashing and Razorpay verification.
+
+1. Database Schema Requirements:
+Create a MySQL database with the following structure:
+
+Users: id, name, email, password_hash, biometric_template (Long Text/Hash), wallet_balance (Decimal), is_verified.
+
+Merchants: id, shop_name, email, password_hash, merchant_balance (Decimal), kiosk_id (Unique identifier for their Raspberry Pi).
+
+Transactions: id, user_id (Nullable for top-ups), merchant_id (Nullable for top-ups), amount, type (TOPUP / PURCHASE), status (SUCCESS / FAILED), razorpay_order_id, timestamp.
+
+2. Key Feature Requirements:
+
+User Role: Can sign up, log in, and top up their wallet using a Razorpay payment gateway integration. Can view a detailed transaction history.
+
+Merchant Role (Shopkeeper): Access to a "Point of Sale" (POS) dashboard. They enter an amount and click "Initiate Payment." This must send a real-time signal via Socket.io to the Raspberry Pi to start the scan.
+
+Admin Role: Master dashboard to monitor system health, view all users/merchants, and see a live global transaction log.
+
+Hardware API: POST /api/hardware/verify-scan
+
+Receives: biometric_hash, merchant_id, and amount.
+
+Logic: Find the user matching the hash, check if wallet_balance >= amount.
+
+ACID Transaction: If successful, deduct from User and add to Merchant balance simultaneously. If any step fails, roll back the transaction.
+
+Real-time Updates: Use Socket.io so that when a payment is processed by the hardware, the Shopkeeper's screen instantly shows "Success" and the User's dashboard updates their balance automatically.
+
+3. Frontend UI/UX (EJS or HTML/CSS):
+
+Design: Modern "High-Tech" FinTech aesthetic using a Dark Theme with Tailwind CSS or Bootstrap.
+
+User Dashboard: Wallet card (balance), "Add Funds" modal, and transaction ledger.
+
+Shopkeeper Dashboard: Large numeric keypad for entering amounts, a "Waiting for Scan" status animation, and "Today's Earnings" summary.
+
+Admin Dashboard: KPI cards (Total Users, Total Volume, Hardware Status).
+
+4. Project Structure:
+
+/routes: Auth, Payment, Merchant, and Hardware routes.
+
+/controllers: Business logic for payments and biometric matching.
+
+/public: Frontend assets and Socket.io client-side logic.
+
+/config: Database and Razorpay configuration using .env variables.

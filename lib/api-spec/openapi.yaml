@@ -3,20 +3,34 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: BioPay – Multi-Tenant Subsurface Palm Vein Biometric Payment System
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: users
+    description: User management
+  - name: merchants
+    description: Merchant management
+  - name: admin
+    description: Admin management
+  - name: transactions
+    description: Transaction management
+  - name: wallet
+    description: Wallet operations
+  - name: hardware
+    description: Hardware (Raspberry Pi) API
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +38,914 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Auth ─────────────────────────────────────────────────────────────────
+  /auth/register/user:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRegistration"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/register/merchant:
+    post:
+      operationId: registerMerchant
+      tags: [auth]
+      summary: Register a new merchant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MerchantRegistration"
+      responses:
+        "201":
+          description: Merchant created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login/user:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Login as user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginCredentials"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login/merchant:
+    post:
+      operationId: loginMerchant
+      tags: [auth]
+      summary: Login as merchant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginCredentials"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login/admin:
+    post:
+      operationId: loginAdmin
+      tags: [auth]
+      summary: Login as admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginCredentials"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout current session
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated session info
+      responses:
+        "200":
+          description: Current session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionInfo"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── User Dashboard ────────────────────────────────────────────────────────
+  /users/me:
+    get:
+      operationId: getUserProfile
+      tags: [users]
+      summary: Get current user profile and wallet
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /users/me/transactions:
+    get:
+      operationId: getUserTransactions
+      tags: [users]
+      summary: Get user transaction history
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionPage"
+
+  /users/me/biometric:
+    post:
+      operationId: enrollBiometric
+      tags: [users]
+      summary: Enroll biometric template (palm vein hash)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BiometricEnrollment"
+      responses:
+        "200":
+          description: Biometric enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /users/me/wallet/topup/order:
+    post:
+      operationId: createTopupOrder
+      tags: [wallet]
+      summary: Create a Razorpay order for wallet top-up
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopupOrderInput"
+      responses:
+        "201":
+          description: Razorpay order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopupOrder"
+
+  /users/me/wallet/topup/verify:
+    post:
+      operationId: verifyTopupPayment
+      tags: [wallet]
+      summary: Verify Razorpay payment and credit wallet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopupVerification"
+      responses:
+        "200":
+          description: Wallet topped up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletBalance"
+
+  # ── Merchant Dashboard ────────────────────────────────────────────────────
+  /merchants/me:
+    get:
+      operationId: getMerchantProfile
+      tags: [merchants]
+      summary: Get current merchant profile and balance
+      responses:
+        "200":
+          description: Merchant profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchantProfile"
+
+  /merchants/me/transactions:
+    get:
+      operationId: getMerchantTransactions
+      tags: [merchants]
+      summary: Get merchant transaction history
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionPage"
+
+  /merchants/me/earnings/summary:
+    get:
+      operationId: getMerchantEarningsSummary
+      tags: [merchants]
+      summary: Get today's and all-time earnings summary
+      responses:
+        "200":
+          description: Earnings summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EarningsSummary"
+
+  /merchants/me/pos/initiate:
+    post:
+      operationId: initiatePayment
+      tags: [merchants]
+      summary: Initiate a payment — signals Raspberry Pi to scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentInitiation"
+      responses:
+        "200":
+          description: Payment initiated, Pi signaled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentSession"
+
+  /merchants/me/pos/cancel:
+    post:
+      operationId: cancelPayment
+      tags: [merchants]
+      summary: Cancel current payment session
+      responses:
+        "200":
+          description: Session cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── Admin Dashboard ───────────────────────────────────────────────────────
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Global KPI stats (users, merchants, volume, hardware)
+      responses:
+        "200":
+          description: System statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
+  /admin/users:
+    get:
+      operationId: getAdminUsers
+      tags: [admin]
+      summary: List all users
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserPage"
+
+  /admin/merchants:
+    get:
+      operationId: getAdminMerchants
+      tags: [admin]
+      summary: List all merchants
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Merchants list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminMerchantPage"
+
+  /admin/transactions:
+    get:
+      operationId: getAdminTransactions
+      tags: [admin]
+      summary: Global transaction log
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [TOPUP, PURCHASE]
+      responses:
+        "200":
+          description: All transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionPage"
+
+  /admin/hardware/status:
+    get:
+      operationId: getHardwareStatus
+      tags: [admin]
+      summary: Get all registered kiosks and their online status
+      responses:
+        "200":
+          description: Hardware status list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KioskStatus"
+
+  # ── Hardware API ──────────────────────────────────────────────────────────
+  /hardware/verify-scan:
+    post:
+      operationId: verifyBiometricScan
+      tags: [hardware]
+      summary: Raspberry Pi submits biometric scan result to process payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BiometricScanInput"
+      responses:
+        "200":
+          description: Payment processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResult"
+        "402":
+          description: Insufficient funds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /hardware/heartbeat:
+    post:
+      operationId: hardwareHeartbeat
+      tags: [hardware]
+      summary: Kiosk heartbeat to report online status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HeartbeatInput"
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    # ── Auth Schemas ────────────────────────────────────────────────────────
+    UserRegistration:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    MerchantRegistration:
+      type: object
+      required: [shop_name, email, password]
+      properties:
+        shop_name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    LoginCredentials:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [token, role, id]
+      properties:
+        token:
+          type: string
+        role:
+          type: string
+          enum: [user, merchant, admin]
+        id:
+          type: integer
+        name:
+          type: ["string", "null"]
+        email:
+          type: string
+
+    SessionInfo:
+      type: object
+      required: [id, role, email]
+      properties:
+        id:
+          type: integer
+        role:
+          type: string
+          enum: [user, merchant, admin]
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+
+    # ── User Schemas ────────────────────────────────────────────────────────
+    UserProfile:
+      type: object
+      required: [id, name, email, wallet_balance, is_verified, biometric_enrolled]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        wallet_balance:
+          type: number
+        is_verified:
+          type: boolean
+        biometric_enrolled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    WalletBalance:
+      type: object
+      required: [wallet_balance]
+      properties:
+        wallet_balance:
+          type: number
+        message:
+          type: ["string", "null"]
+
+    BiometricEnrollment:
+      type: object
+      required: [biometric_hash]
+      properties:
+        biometric_hash:
+          type: string
+          description: SHA-256 hash of palm vein scan data
+
+    # ── Merchant Schemas ────────────────────────────────────────────────────
+    MerchantProfile:
+      type: object
+      required: [id, shop_name, email, merchant_balance, kiosk_id]
+      properties:
+        id:
+          type: integer
+        shop_name:
+          type: string
+        email:
+          type: string
+        merchant_balance:
+          type: number
+        kiosk_id:
+          type: string
+        is_online:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    EarningsSummary:
+      type: object
+      required: [today_earnings, today_count, total_earnings, total_count, weekly_earnings]
+      properties:
+        today_earnings:
+          type: number
+        today_count:
+          type: integer
+        total_earnings:
+          type: number
+        total_count:
+          type: integer
+        weekly_earnings:
+          type: number
+
+    PaymentInitiation:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: number
+          minimum: 1
+
+    PaymentSession:
+      type: object
+      required: [session_id, amount, status]
+      properties:
+        session_id:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [WAITING, COMPLETED, FAILED, CANCELLED]
+        message:
+          type: ["string", "null"]
+
+    # ── Transaction Schemas ─────────────────────────────────────────────────
+    Transaction:
+      type: object
+      required: [id, amount, type, status, timestamp]
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: ["integer", "null"]
+        merchant_id:
+          type: ["integer", "null"]
+        amount:
+          type: number
+        type:
+          type: string
+          enum: [TOPUP, PURCHASE]
+        status:
+          type: string
+          enum: [SUCCESS, FAILED]
+        razorpay_order_id:
+          type: ["string", "null"]
+        user_name:
+          type: ["string", "null"]
+        merchant_name:
+          type: ["string", "null"]
+        timestamp:
+          type: string
+          format: date-time
+
+    TransactionPage:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    # ── Wallet Top-up Schemas ───────────────────────────────────────────────
+    TopupOrderInput:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: number
+          minimum: 10
+          description: Amount in INR
+
+    TopupOrder:
+      type: object
+      required: [razorpay_order_id, amount, currency, key]
+      properties:
+        razorpay_order_id:
+          type: string
+        amount:
+          type: integer
+          description: Amount in paise
+        currency:
+          type: string
+        key:
+          type: string
+          description: Razorpay key_id for frontend checkout
+
+    TopupVerification:
+      type: object
+      required: [razorpay_order_id, razorpay_payment_id, razorpay_signature]
+      properties:
+        razorpay_order_id:
+          type: string
+        razorpay_payment_id:
+          type: string
+        razorpay_signature:
+          type: string
+
+    # ── Admin Schemas ───────────────────────────────────────────────────────
+    AdminStats:
+      type: object
+      required: [total_users, total_merchants, total_volume, total_transactions, active_kiosks, failed_transactions]
+      properties:
+        total_users:
+          type: integer
+        total_merchants:
+          type: integer
+        total_volume:
+          type: number
+        total_transactions:
+          type: integer
+        active_kiosks:
+          type: integer
+        failed_transactions:
+          type: integer
+        today_volume:
+          type: number
+        today_transactions:
+          type: integer
+
+    AdminUser:
+      type: object
+      required: [id, name, email, wallet_balance, is_verified, biometric_enrolled, created_at]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        wallet_balance:
+          type: number
+        is_verified:
+          type: boolean
+        biometric_enrolled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    AdminUserPage:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    AdminMerchant:
+      type: object
+      required: [id, shop_name, email, merchant_balance, kiosk_id, is_online, created_at]
+      properties:
+        id:
+          type: integer
+        shop_name:
+          type: string
+        email:
+          type: string
+        merchant_balance:
+          type: number
+        kiosk_id:
+          type: string
+        is_online:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    AdminMerchantPage:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminMerchant"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    KioskStatus:
+      type: object
+      required: [kiosk_id, merchant_id, shop_name, is_online]
+      properties:
+        kiosk_id:
+          type: string
+        merchant_id:
+          type: integer
+        shop_name:
+          type: string
+        is_online:
+          type: boolean
+        last_seen:
+          type: ["string", "null"]
+          format: date-time
+
+    # ── Hardware Schemas ────────────────────────────────────────────────────
+    BiometricScanInput:
+      type: object
+      required: [biometric_hash, merchant_id, amount]
+      properties:
+        biometric_hash:
+          type: string
+        merchant_id:
+          type: integer
+        amount:
+          type: number
+
+    PaymentResult:
+      type: object
+      required: [success, transaction_id, amount, user_name, merchant_name, new_balance]
+      properties:
+        success:
+          type: boolean
+        transaction_id:
+          type: integer
+        amount:
+          type: number
+        user_name:
+          type: string
+        merchant_name:
+          type: string
+        new_balance:
+          type: number
+
+    HeartbeatInput:
+      type: object
+      required: [kiosk_id]
+      properties:
+        kiosk_id:
+          type: string

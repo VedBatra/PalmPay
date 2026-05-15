@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLoginUser, useRegisterUser } from "@workspace/api-client-react";
 import { setAuth } from "@/lib/auth";
-import { connectSocket } from "@/lib/socket";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -30,7 +28,6 @@ type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function LoginUser() {
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const loginMutation = useLoginUser();
   const registerMutation = useRegisterUser();
@@ -42,8 +39,7 @@ export default function LoginUser() {
     loginMutation.mutate({ data }, {
       onSuccess: (res) => {
         setAuth(res.token, res.role);
-        connectSocket(res.token);
-        setLocation("/dashboard/user");
+        window.location.replace("/dashboard/user");
       },
       onError: (err: unknown) => {
         const message = (err as { data?: { error?: string } })?.data?.error ?? "Login failed";
@@ -56,8 +52,7 @@ export default function LoginUser() {
     registerMutation.mutate({ data }, {
       onSuccess: (res) => {
         setAuth(res.token, res.role);
-        connectSocket(res.token);
-        setLocation("/dashboard/user");
+        window.location.replace("/dashboard/user");
       },
       onError: (err: unknown) => {
         const message = (err as { data?: { error?: string } })?.data?.error ?? "Registration failed";

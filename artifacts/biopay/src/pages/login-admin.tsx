@@ -1,10 +1,8 @@
-import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLoginAdmin } from "@workspace/api-client-react";
 import { setAuth } from "@/lib/auth";
-import { connectSocket } from "@/lib/socket";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -20,14 +18,13 @@ const schema = z.object({
 type Form = z.infer<typeof schema>;
 
 export default function LoginAdmin() {
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const loginMutation = useLoginAdmin();
   const form = useForm<Form>({ resolver: zodResolver(schema), defaultValues: { email: "", password: "" } });
 
   const handleLogin = (data: Form) => {
     loginMutation.mutate({ data }, {
-      onSuccess: (res) => { setAuth(res.token, res.role); connectSocket(res.token); setLocation("/dashboard/admin"); },
+      onSuccess: (res) => { setAuth(res.token, res.role); window.location.replace("/dashboard/admin"); },
       onError: (err: unknown) => toast({ title: "Access denied", description: (err as { data?: { error?: string } })?.data?.error ?? "Invalid credentials", variant: "destructive" }),
     });
   };

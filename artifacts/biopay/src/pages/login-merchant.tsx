@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLoginMerchant, useRegisterMerchant } from "@workspace/api-client-react";
 import { setAuth } from "@/lib/auth";
-import { connectSocket } from "@/lib/socket";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -29,7 +27,6 @@ type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function LoginMerchant() {
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const loginMutation = useLoginMerchant();
   const registerMutation = useRegisterMerchant();
@@ -39,13 +36,13 @@ export default function LoginMerchant() {
 
   const handleLogin = (data: LoginForm) => {
     loginMutation.mutate({ data }, {
-      onSuccess: (res) => { setAuth(res.token, res.role); connectSocket(res.token); setLocation("/dashboard/merchant"); },
+      onSuccess: (res) => { setAuth(res.token, res.role); window.location.replace("/dashboard/merchant"); },
       onError: (err: unknown) => toast({ title: "Login failed", description: (err as { data?: { error?: string } })?.data?.error ?? "Invalid credentials", variant: "destructive" }),
     });
   };
   const handleRegister = (data: RegisterForm) => {
     registerMutation.mutate({ data }, {
-      onSuccess: (res) => { setAuth(res.token, res.role); connectSocket(res.token); setLocation("/dashboard/merchant"); },
+      onSuccess: (res) => { setAuth(res.token, res.role); window.location.replace("/dashboard/merchant"); },
       onError: (err: unknown) => toast({ title: "Registration failed", description: (err as { data?: { error?: string } })?.data?.error ?? "Failed", variant: "destructive" }),
     });
   };

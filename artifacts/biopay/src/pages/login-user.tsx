@@ -102,14 +102,14 @@ export default function LoginUser() {
                 <FormField control={loginForm.control} name="email" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="font-mono text-xs text-muted-foreground">EMAIL</FormLabel>
-                    <FormControl><Input data-testid="input-email" placeholder="you@example.com" {...field} /></FormControl>
+                    <FormControl><Input data-testid="input-email" type="email" placeholder="you@example.com" autoComplete="email" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={loginForm.control} name="password" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="font-mono text-xs text-muted-foreground">PASSWORD</FormLabel>
-                    <FormControl><Input data-testid="input-password" type="password" placeholder="••••••••" {...field} /></FormControl>
+                    <FormControl><Input data-testid="input-password" type="password" placeholder="••••••••" autoComplete="current-password" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -124,21 +124,21 @@ export default function LoginUser() {
                 <FormField control={registerForm.control} name="name" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="font-mono text-xs text-muted-foreground">FULL NAME</FormLabel>
-                    <FormControl><Input data-testid="input-name" placeholder="John Doe" {...field} /></FormControl>
+                    <FormControl><Input data-testid="input-name" placeholder="John Doe" autoComplete="given-name" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={registerForm.control} name="email" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="font-mono text-xs text-muted-foreground">EMAIL</FormLabel>
-                    <FormControl><Input data-testid="input-email" placeholder="you@example.com" {...field} /></FormControl>
+                    <FormControl><Input data-testid="input-email" type="email" placeholder="you@example.com" autoComplete="email" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={registerForm.control} name="password" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="font-mono text-xs text-muted-foreground">PASSWORD</FormLabel>
-                    <FormControl><Input data-testid="input-password" type="password" placeholder="Min. 8 characters" {...field} /></FormControl>
+                    <FormControl><Input data-testid="input-password" type="password" placeholder="Min. 8 characters" autoComplete="new-password" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />

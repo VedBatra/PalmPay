@@ -5,55 +5,9 @@ import { eq, sql } from "drizzle-orm";
 import { emitToMerchant, emitToUser } from "../lib/socket.js";
 import { activeSessions } from "./merchants.js";
 import { activeEnrollments } from "./users.js";
+import { isBlacklisted, computeJaccardSimilarity } from "../lib/biometrics.js";
 
 const router = Router();
-
-const BLACKLISTED_HASHES = new Set([
-  "22d05d61a54173b13d57f9b57dd9723abf760b038925411e6b98a77bd514bec0", // 2592x1944
-  "7818f5542a0404157573be6cffc0e0c8e68ce3c0f5d17d07ccdd9313fb700baf", // 640x480
-  "11283ef755895422e6f28b93f3d78cad7539891cf2893c9fdccefb923c5bf70b", // 1920x1080
-  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"  // Empty
-]);
-
-function isBlacklisted(hashString: string): boolean {
-  if (!hashString) return true;
-  const parts = hashString.split(",");
-  for (const part of parts) {
-    if (BLACKLISTED_HASHES.has(part.trim())) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function hexToBits(hex: string): boolean[] {
-  const bits: boolean[] = [];
-  for (let i = 0; i < hex.length; i += 2) {
-    const byte = parseInt(hex.substring(i, i + 2), 16);
-    for (let bit = 7; bit >= 0; bit--) {
-      bits.push(((byte >> bit) & 1) === 1);
-    }
-  }
-  return bits;
-}
-
-function computeJaccardSimilarity(hex1: string, hex2: string): number {
-  const bits1 = hexToBits(hex1);
-  const bits2 = hexToBits(hex2);
-  let match = 0;
-  let union = 0;
-  const length = Math.min(bits1.length, bits2.length);
-  for (let i = 0; i < length; i++) {
-    if (bits1[i] || bits2[i]) {
-      union++;
-      if (bits1[i] && bits2[i]) {
-        match++;
-      }
-    }
-  }
-  if (union === 0) return 0;
-  return match / union;
-}
 
 router.get("/hardware/active-session/:merchant_id", async (req, res) => {
   const merchant_id = Number(req.params.merchant_id);
@@ -114,34 +68,38 @@ router.post("/hardware/verify-scan", async (req, res) => {
         )
       });
 
-      let bestScore = 0;
-      let matchedUser = null;
-      let secondBestScore = 0;
-      let secondBestUser = null;
+      const userScores: { user: any; score: number }[] = [];
 
       for (const candidate of allVerified) {
         if (!candidate.biometric_template) continue;
         const templates = candidate.biometric_template.split(",");
+        let maxUserScore = 0;
+        let hasValidTemplate = false;
         for (const tmpl of templates) {
           const trimmed = tmpl.trim();
           if (trimmed.length === 256) {
+            hasValidTemplate = true;
             const score = computeJaccardSimilarity(biometric_hash, trimmed);
-            if (score > bestScore) {
-              if (matchedUser && matchedUser.id !== candidate.id) {
-                secondBestScore = bestScore;
-                secondBestUser = matchedUser;
-              }
-              bestScore = score;
-              matchedUser = candidate;
-            } else if (candidate.id !== matchedUser?.id) {
-              if (score > secondBestScore) {
-                secondBestScore = score;
-                secondBestUser = candidate;
-              }
+            if (score > maxUserScore) {
+              maxUserScore = score;
             }
           }
         }
+        if (hasValidTemplate) {
+          userScores.push({ user: candidate, score: maxUserScore });
+        }
       }
+
+      // Sort user scores in descending order
+      userScores.sort((a, b) => b.score - a.score);
+
+      const bestMatch = userScores[0] || null;
+      const secondBestMatch = userScores[1] || null;
+
+      const bestScore = bestMatch ? bestMatch.score : 0;
+      const matchedUser = bestMatch ? bestMatch.user : null;
+      const secondBestScore = secondBestMatch ? secondBestMatch.score : 0;
+      const secondBestUser = secondBestMatch ? secondBestMatch.user : null;
 
       const delta = bestScore - secondBestScore;
       console.log(`[verify-scan] Physical matching completed.`);
@@ -153,7 +111,7 @@ router.post("/hardware/verify-scan", async (req, res) => {
       const ABSOLUTE_THRESHOLD = 0.35;
       const MIN_DELTA = 0.08; // Require at least 0.08 separation between the best user and runner-up user
 
-      if (bestScore >= ABSOLUTE_THRESHOLD && (allVerified.length <= 1 || delta >= MIN_DELTA)) {
+      if (bestScore >= ABSOLUTE_THRESHOLD && (userScores.length <= 1 || delta >= MIN_DELTA)) {
         user = matchedUser;
         console.log(`[verify-scan] Match SUCCESS! User: ${user?.name} (Score: ${bestScore.toFixed(4)}, Delta: ${delta.toFixed(4)})`);
       } else {

@@ -4,6 +4,7 @@ import { usersTable, transactionsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth.js";
 import { eq, desc, sql } from "drizzle-orm";
 import crypto from "crypto";
+import { isBlacklisted, computeJaccardSimilarity } from "../lib/biometrics.js";
 
 const router = Router();
 
@@ -89,7 +90,47 @@ router.post("/users/me/biometric/cancel", requireAuth(["user"]), async (req, res
 router.post("/users/me/biometric", requireAuth(["user"]), async (req, res) => {
   const { biometric_hash } = req.body as { biometric_hash: string };
   if (!biometric_hash) { res.status(400).json({ error: "biometric_hash required" }); return; }
+
+  if (isBlacklisted(biometric_hash)) {
+    res.status(400).json({ error: "Invalid biometric scan quality (blank frame detected)" });
+    return;
+  }
+
   try {
+    // Collision Check: Ensure this template doesn't collide with any other enrolled user
+    if (biometric_hash && (biometric_hash.length === 256 || biometric_hash.includes(","))) {
+      const newTemplates = biometric_hash.split(",");
+      const allVerified = await db.query.usersTable.findMany({
+        where: (u, { and, eq, isNotNull }) => and(
+          eq(u.is_verified, true),
+          isNotNull(u.biometric_template)
+        )
+      });
+
+      for (const candidate of allVerified) {
+        if (candidate.id === req.user!.id) continue;
+        if (!candidate.biometric_template) continue;
+        const existingTemplates = candidate.biometric_template.split(",");
+        
+        for (const newTmpl of newTemplates) {
+          const newTrimmed = newTmpl.trim();
+          if (newTrimmed.length !== 256) continue;
+          
+          for (const extTmpl of existingTemplates) {
+            const extTrimmed = extTmpl.trim();
+            if (extTrimmed.length !== 256) continue;
+            
+            const score = computeJaccardSimilarity(newTrimmed, extTrimmed);
+            if (score >= 0.35) {
+              console.log(`[register-biometric] Collision detected! New template matches existing user ${candidate.name} (Score: ${score.toFixed(4)})`);
+              res.status(400).json({ error: "Biometric collision detected. This palm is already registered to another account." });
+              return;
+            }
+          }
+        }
+      }
+    }
+
     await db.update(usersTable).set({ biometric_template: biometric_hash, is_verified: true }).where(eq(usersTable.id, req.user!.id));
     res.json({ message: "Biometric enrolled successfully" });
   } catch (err) {

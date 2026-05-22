@@ -64,3 +64,5 @@ pgdata/
 artifacts/*.jpg
 artifacts/*.png
 
+# Scratch files
+scratch/

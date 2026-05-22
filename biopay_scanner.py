@@ -82,6 +82,15 @@ def extract_biometric_hash(image_array):
     blurred  = cv2.GaussianBlur(enhanced, (5, 5), 0)
     edges    = cv2.Canny(blurred, 50, 150)
     
+    # Mask out physical border noise/vignetting/lens boundaries (outer 15% of frame)
+    h, w = edges.shape
+    border_y = int(h * 0.15)
+    border_x = int(w * 0.15)
+    edges[0:border_y, :] = 0
+    edges[h-border_y:h, :] = 0
+    edges[:, 0:border_x] = 0
+    edges[:, w-border_x:w] = 0
+    
     # 2. Edge Density Check
     non_zero_edges = cv2.countNonZero(edges)
     print(f"Captured Frame Edge Count: {non_zero_edges}")

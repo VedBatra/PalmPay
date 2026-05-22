@@ -116,6 +116,8 @@ router.post("/hardware/verify-scan", async (req, res) => {
 
       let bestScore = 0;
       let matchedUser = null;
+      let secondBestScore = 0;
+      let secondBestUser = null;
 
       for (const candidate of allVerified) {
         if (!candidate.biometric_template) continue;
@@ -125,20 +127,41 @@ router.post("/hardware/verify-scan", async (req, res) => {
           if (trimmed.length === 256) {
             const score = computeJaccardSimilarity(biometric_hash, trimmed);
             if (score > bestScore) {
+              if (matchedUser && matchedUser.id !== candidate.id) {
+                secondBestScore = bestScore;
+                secondBestUser = matchedUser;
+              }
               bestScore = score;
               matchedUser = candidate;
+            } else if (candidate.id !== matchedUser?.id) {
+              if (score > secondBestScore) {
+                secondBestScore = score;
+                secondBestUser = candidate;
+              }
             }
           }
         }
       }
 
-      console.log(`[verify-scan] Physical matching completed. Best Jaccard score: ${bestScore.toFixed(4)}`);
-      // Calibrated Jaccard threshold: 0.25
-      if (bestScore >= 0.25) {
+      const delta = bestScore - secondBestScore;
+      console.log(`[verify-scan] Physical matching completed.`);
+      console.log(`  - Best Match: ${matchedUser?.name || "None"} (Score: ${bestScore.toFixed(4)})`);
+      console.log(`  - Runner-up Match: ${secondBestUser?.name || "None"} (Score: ${secondBestScore.toFixed(4)})`);
+      console.log(`  - Match Delta: ${delta.toFixed(4)}`);
+
+      // Calibrated thresholds
+      const ABSOLUTE_THRESHOLD = 0.35;
+      const MIN_DELTA = 0.08; // Require at least 0.08 separation between the best user and runner-up user
+
+      if (bestScore >= ABSOLUTE_THRESHOLD && (allVerified.length <= 1 || delta >= MIN_DELTA)) {
         user = matchedUser;
-        console.log(`[verify-scan] Match SUCCESS! User: ${user?.name} (Score: ${bestScore.toFixed(4)})`);
+        console.log(`[verify-scan] Match SUCCESS! User: ${user?.name} (Score: ${bestScore.toFixed(4)}, Delta: ${delta.toFixed(4)})`);
       } else {
-        console.log(`[verify-scan] Match FAILED. Best score ${bestScore.toFixed(4)} is below threshold 0.25`);
+        if (bestScore < ABSOLUTE_THRESHOLD) {
+          console.log(`[verify-scan] Match FAILED. Best score ${bestScore.toFixed(4)} is below threshold ${ABSOLUTE_THRESHOLD}`);
+        } else {
+          console.log(`[verify-scan] Match FAILED. Match is ambiguous. Delta ${delta.toFixed(4)} is below safety margin ${MIN_DELTA}`);
+        }
       }
     }
 
@@ -278,6 +301,41 @@ router.post("/hardware/register-scan", async (req, res) => {
     if (!session || session.status !== "WAITING") {
       res.status(400).json({ error: "Invalid or expired enrollment session" });
       return;
+    }
+
+    // Collision Check: Ensure this template doesn't collide with any other enrolled user
+    if (biometric_hash && (biometric_hash.length === 256 || biometric_hash.includes(","))) {
+      const newTemplates = biometric_hash.split(",");
+      const allVerified = await db.query.usersTable.findMany({
+        where: (u, { and, eq, isNotNull }) => and(
+          eq(u.is_verified, true),
+          isNotNull(u.biometric_template)
+        )
+      });
+
+      for (const candidate of allVerified) {
+        if (candidate.id === session.user_id) continue;
+        if (!candidate.biometric_template) continue;
+        const existingTemplates = candidate.biometric_template.split(",");
+        
+        for (const newTmpl of newTemplates) {
+          const newTrimmed = newTmpl.trim();
+          if (newTrimmed.length !== 256) continue;
+          
+          for (const extTmpl of existingTemplates) {
+            const extTrimmed = extTmpl.trim();
+            if (extTrimmed.length !== 256) continue;
+            
+            const score = computeJaccardSimilarity(newTrimmed, extTrimmed);
+            if (score >= 0.35) {
+              console.log(`[register-scan] Collision detected! New template matches existing user ${candidate.name} (Score: ${score.toFixed(4)})`);
+              activeEnrollments.delete(merchant_id);
+              res.status(400).json({ error: "Biometric collision detected. This palm is already registered to another account." });
+              return;
+            }
+          }
+        }
+      }
     }
 
     // Update the user's template in the DB

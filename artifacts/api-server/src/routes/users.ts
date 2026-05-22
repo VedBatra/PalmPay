@@ -4,7 +4,7 @@ import { usersTable, transactionsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth.js";
 import { eq, desc, sql } from "drizzle-orm";
 import crypto from "crypto";
-import { isBlacklisted, computeJaccardSimilarity } from "../lib/biometrics.js";
+import { isBlacklisted, computeJaccardSimilarity, countActiveBits } from "../lib/biometrics.js";
 
 const router = Router();
 
@@ -94,6 +94,21 @@ router.post("/users/me/biometric", requireAuth(["user"]), async (req, res) => {
   if (isBlacklisted(biometric_hash)) {
     res.status(400).json({ error: "Invalid biometric scan quality (blank frame detected)" });
     return;
+  }
+
+  // Validate active bits quality
+  if (biometric_hash && (biometric_hash.length === 256 || biometric_hash.includes(","))) {
+    const newTemplates = biometric_hash.split(",");
+    for (const newTmpl of newTemplates) {
+      const trimmed = newTmpl.trim();
+      if (trimmed.length === 256) {
+        const activeBits = countActiveBits(trimmed);
+        if (activeBits < 50) {
+          res.status(400).json({ error: "Invalid biometric scan quality (insufficient details/blank scan)" });
+          return;
+        }
+      }
+    }
   }
 
   try {

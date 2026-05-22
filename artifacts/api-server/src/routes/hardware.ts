@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { emitToMerchant, emitToUser } from "../lib/socket.js";
 import { activeSessions } from "./merchants.js";
 import { activeEnrollments } from "./users.js";
-import { isBlacklisted, computeJaccardSimilarity } from "../lib/biometrics.js";
+import { isBlacklisted, computeJaccardSimilarity, countActiveBits } from "../lib/biometrics.js";
 
 const router = Router();
 
@@ -36,6 +36,14 @@ router.post("/hardware/verify-scan", async (req, res) => {
   if (isBlacklisted(biometric_hash)) {
     res.status(400).json({ error: "Invalid biometric scan quality (blank frame detected)" });
     return;
+  }
+
+  if (biometric_hash.length === 256) {
+    const activeBits = countActiveBits(biometric_hash);
+    if (activeBits < 50) {
+      res.status(400).json({ error: "Invalid biometric scan quality (insufficient details/blank scan)" });
+      return;
+    }
   }
 
   try {
@@ -255,6 +263,21 @@ router.post("/hardware/register-scan", async (req, res) => {
   if (isBlacklisted(biometric_hash)) {
     res.status(400).json({ error: "Invalid biometric scan quality (blank frame detected)" });
     return;
+  }
+
+  // Validate active bits quality
+  if (biometric_hash && (biometric_hash.length === 256 || biometric_hash.includes(","))) {
+    const newTemplates = biometric_hash.split(",");
+    for (const newTmpl of newTemplates) {
+      const trimmed = newTmpl.trim();
+      if (trimmed.length === 256) {
+        const activeBits = countActiveBits(trimmed);
+        if (activeBits < 50) {
+          res.status(400).json({ error: "Invalid biometric scan quality (insufficient details/blank scan)" });
+          return;
+        }
+      }
+    }
   }
 
   try {

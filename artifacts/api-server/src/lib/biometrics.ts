@@ -27,6 +27,11 @@ export function hexToBits(hex: string): boolean[] {
   return bits;
 }
 
+export function countActiveBits(hex: string): number {
+  const bits = hexToBits(hex);
+  return bits.filter(b => b).length;
+}
+
 export function computeJaccardSimilarity(hex1: string, hex2: string): number {
   const bits1 = hexToBits(hex1);
   const bits2 = hexToBits(hex2);
@@ -46,6 +51,12 @@ export function computeJaccardSimilarity(hex1: string, hex2: string): number {
     }
     if (union === 0) return 0;
     return match / union;
+  }
+
+  const active1 = bits1.filter(b => b).length;
+  const active2 = bits2.filter(b => b).length;
+  if (active1 < 50 || active2 < 50) {
+    return 0; // Low quality templates should never match
   }
 
   // 2D grid translation shift optimization to align genuine templates

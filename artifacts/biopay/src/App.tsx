@@ -31,6 +31,11 @@ function Router() {
       connectSocket(token);
       if (location === "/" || location.startsWith("/login")) {
         setLocation(`/dashboard/${role}`);
+      } else if (location.startsWith("/dashboard/")) {
+        const expectedRole = location.split("/")[2]; // e.g. "user" or "merchant" or "admin"
+        if (role !== expectedRole) {
+          setLocation(`/login/${expectedRole}`);
+        }
       }
     } else {
       disconnectSocket();

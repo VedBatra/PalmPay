@@ -8,7 +8,7 @@ import {
   useVerifyTopupPayment,
   useLogout,
 } from "@workspace/api-client-react";
-import { clearAuth } from "@/lib/auth";
+import { clearAuth, getToken } from "@/lib/auth";
 import { disconnectSocket, socket } from "@/lib/socket";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Hand, LogOut, TrendingUp, Plus, CheckCircle, XCircle, RefreshCw, Fingerprint } from "lucide-react";
+import { Hand, LogOut, TrendingUp, Plus, CheckCircle, XCircle, RefreshCw, Fingerprint, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export default function DashboardUser() {
@@ -28,10 +28,12 @@ export default function DashboardUser() {
   const [topupOpen, setTopupOpen] = useState(false);
   const [topupAmount, setTopupAmount] = useState("");
   const [balanceGlow, setBalanceGlow] = useState(false);
+  const [enrollOpen, setEnrollOpen] = useState(false);
+  const [enrollSessionId, setEnrollSessionId] = useState("");
+  const [enrollPending, setEnrollPending] = useState(false);
 
   const { data: profile, isLoading } = useGetUserProfile();
   const { data: txData, isLoading: txLoading } = useGetUserTransactions({ page: 1, limit: 20 });
-  const enrollMutation = useEnrollBiometric();
   const createOrderMutation = useCreateTopupOrder();
   const verifyMutation = useVerifyTopupPayment();
   const logoutMutation = useLogout();
@@ -43,8 +45,25 @@ export default function DashboardUser() {
       queryClient.invalidateQueries({ queryKey: getGetUserProfileQueryKey() });
       toast({ title: "Balance updated", description: `New balance: ₹${data.wallet_balance.toFixed(2)}` });
     };
+
+    const handleBiometricSuccess = () => {
+      setEnrollOpen(false);
+      setEnrollSessionId("");
+      queryClient.invalidateQueries({ queryKey: getGetUserProfileQueryKey() });
+      toast({
+        title: "Biometric enrolled successfully!",
+        description: "Your palm vein data has been securely registered to your account.",
+        className: "bg-green-500 text-white font-mono",
+      });
+    };
+
     socket.on("wallet:updated", handleWalletUpdate);
-    return () => { socket.off("wallet:updated", handleWalletUpdate); };
+    socket.on("biometric:success", handleBiometricSuccess);
+
+    return () => {
+      socket.off("wallet:updated", handleWalletUpdate);
+      socket.off("biometric:success", handleBiometricSuccess);
+    };
   }, [queryClient, toast]);
 
   const handleLogout = () => {
@@ -53,18 +72,59 @@ export default function DashboardUser() {
     });
   };
 
-  const handleEnroll = () => {
-    const crypto = window.crypto;
-    const arr = new Uint8Array(32);
-    crypto.getRandomValues(arr);
-    const hash = Array.from(arr).map((b) => b.toString(16).padStart(2, "0")).join("");
-    enrollMutation.mutate({ data: { biometric_hash: hash } }, {
-      onSuccess: () => {
-        toast({ title: "Biometric enrolled", description: "Your palm vein data has been registered." });
-        queryClient.invalidateQueries({ queryKey: getGetUserProfileQueryKey() });
-      },
-      onError: () => toast({ title: "Enrollment failed", variant: "destructive" }),
-    });
+  const handleEnroll = async () => {
+    try {
+      setEnrollPending(true);
+      const res = await fetch("/api/users/me/biometric/initiate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to initiate biometric scan");
+      }
+
+      const data = await res.json() as { session_id: string; status: string };
+      setEnrollSessionId(data.session_id);
+      setEnrollOpen(true);
+      toast({
+        title: "Enrollment mode active",
+        description: "Please proceed to the physical kiosk to scan your palm.",
+      });
+    } catch (err) {
+      toast({
+        title: "Enrollment failed",
+        description: err instanceof Error ? err.message : "Could not talk to API server.",
+        variant: "destructive",
+      });
+    } finally {
+      setEnrollPending(false);
+    }
+  };
+
+  const handleCancelEnroll = async () => {
+    try {
+      await fetch("/api/users/me/biometric/cancel", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
+      setEnrollOpen(false);
+      setEnrollSessionId("");
+      toast({
+        title: "Enrollment cancelled",
+        description: "Kiosk enrollment mode has been reset.",
+      });
+    } catch (err) {
+      // Clean up local state regardless
+      setEnrollOpen(false);
+      setEnrollSessionId("");
+    }
   };
 
   const handleTopup = () => {
@@ -153,8 +213,8 @@ export default function DashboardUser() {
                   <p className="text-xs text-muted-foreground">Required to make payments at kiosks</p>
                 </div>
               </div>
-              <Button data-testid="button-enroll-biometric" onClick={handleEnroll} disabled={enrollMutation.isPending} variant="outline" className="font-mono text-xs border-yellow-500/50 hover:border-yellow-500">
-                {enrollMutation.isPending ? <><RefreshCw className="w-3 h-3 mr-2 animate-spin" />SCANNING...</> : "ENROLL NOW"}
+              <Button data-testid="button-enroll-biometric" onClick={handleEnroll} disabled={enrollPending} variant="outline" className="font-mono text-xs border-yellow-500/50 hover:border-yellow-500">
+                {enrollPending ? <><RefreshCw className="w-3 h-3 mr-2 animate-spin" />SCANNING...</> : "ENROLL NOW"}
               </Button>
             </div>
           </Card>
@@ -245,6 +305,60 @@ export default function DashboardUser() {
               {createOrderMutation.isPending || verifyMutation.isPending
                 ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />PROCESSING...</>
                 : "CONFIRM TOP-UP"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Biometric Enrollment Pending Dialog */}
+      <Dialog open={enrollOpen} onOpenChange={(open) => { if (!open) handleCancelEnroll(); }}>
+        <DialogContent className="bg-card border-border max-w-sm overflow-hidden relative">
+          <style>{`
+            @keyframes scanLaser {
+              0% { top: 0%; opacity: 0; }
+              10% { opacity: 1; }
+              90% { opacity: 1; }
+              100% { top: 100%; opacity: 0; }
+            }
+            @keyframes radarPulse {
+              0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.4); }
+              70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(234, 179, 8, 0); }
+              100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
+            }
+          `}</style>
+          <DialogHeader>
+            <DialogTitle className="font-mono text-center tracking-wider text-yellow-500">BIOMETRIC ENROLLMENT</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-8 space-y-6">
+            <div 
+              className="relative w-36 h-36 rounded-full flex items-center justify-center bg-yellow-500/10 border border-yellow-500/30"
+              style={{ animation: "radarPulse 2s infinite ease-in-out" }}
+            >
+              <div className="absolute inset-4 rounded-full border border-dashed border-yellow-500/20" />
+              <Fingerprint className="w-16 h-16 text-yellow-500 animate-pulse" />
+              {/* Scan Line */}
+              <div 
+                className="absolute left-0 right-0 h-0.5 bg-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.8)]"
+                style={{ animation: "scanLaser 2.5s infinite linear" }}
+              />
+            </div>
+
+            <div className="text-center space-y-2">
+              <p className="font-mono font-bold text-sm tracking-tight text-foreground">AWAITING PALM SCANS</p>
+              <p className="text-xs text-muted-foreground max-w-[250px] mx-auto leading-relaxed">
+                Please place and shift your palm over the BioPay kiosk scanner terminal as prompted on the OLED screen.
+              </p>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-[10px] text-yellow-500 font-mono">
+                <Loader2 className="w-3 h-3 animate-spin" /> KIOSK TERMINAL #1 ACTIVE
+              </div>
+            </div>
+
+            <Button 
+              variant="outline" 
+              onClick={handleCancelEnroll}
+              className="font-mono text-xs text-muted-foreground border-border hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+            >
+              CANCEL ENROLLMENT
             </Button>
           </div>
         </DialogContent>

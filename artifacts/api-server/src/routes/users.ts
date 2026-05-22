@@ -3,8 +3,11 @@ import { db } from "@workspace/db";
 import { usersTable, transactionsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth.js";
 import { eq, desc, sql } from "drizzle-orm";
+import crypto from "crypto";
 
 const router = Router();
+
+export const activeEnrollments = new Map<number, { session_id: string; user_id: number; status: string }>();
 
 router.get("/users/me", requireAuth(["user"]), async (req, res) => {
   try {
@@ -64,6 +67,23 @@ router.get("/users/me/transactions", requireAuth(["user"]), async (req, res) => 
     req.log.error(err);
     res.status(500).json({ error: "Failed to fetch transactions" });
   }
+});
+
+router.post("/users/me/biometric/initiate", requireAuth(["user"]), async (req, res) => {
+  try {
+    const session_id = crypto.randomBytes(8).toString("hex");
+    // Defaulting to kiosk 1 (matching merchant 1)
+    activeEnrollments.set(1, { session_id, user_id: req.user!.id, status: "WAITING" });
+    res.json({ session_id, status: "WAITING", message: "Awaiting kiosk palm scan..." });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to initiate biometric enrollment" });
+  }
+});
+
+router.post("/users/me/biometric/cancel", requireAuth(["user"]), async (req, res) => {
+  activeEnrollments.delete(1);
+  res.json({ message: "Biometric enrollment cancelled" });
 });
 
 router.post("/users/me/biometric", requireAuth(["user"]), async (req, res) => {

@@ -47,3 +47,20 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local configuration & credentials
+.env
+
+# Local database storage
+pgdata/
+
+# Large precompiled packages
+*.whl
+
+# Agent internal state and logs
+.agents/
+
+# Temporary run/test artifacts
+artifacts/*.jpg
+artifacts/*.png
+

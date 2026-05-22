@@ -1,5 +1,6 @@
 import { Server as SocketIOServer } from "socket.io";
 import { Server as HttpServer } from "http";
+import { verifyJwt } from "./jwt.js";
 
 let io: SocketIOServer | null = null;
 
@@ -10,6 +11,20 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
   });
 
   io.on("connection", (socket) => {
+    // 1. Try to authenticate via JWT token from auth (used by React frontend)
+    const token = socket.handshake.auth?.token;
+    if (token) {
+      const payload = verifyJwt(token);
+      if (payload) {
+        if (payload.role === "merchant") {
+          socket.join(`merchant:${payload.id}`);
+        } else if (payload.role === "user") {
+          socket.join(`user:${payload.id}`);
+        }
+      }
+    }
+
+    // 2. Fallback to query parameters (useful for tests and backward compatibility)
     const merchantId = socket.handshake.query.merchantId as string;
     const userId = socket.handshake.query.userId as string;
 

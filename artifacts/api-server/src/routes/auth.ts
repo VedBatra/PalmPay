@@ -14,11 +14,12 @@ router.post("/auth/register/user", async (req, res) => {
     res.status(400).json({ error: "Name, email, and password (min 8 chars) required" });
     return;
   }
+  const normalizedEmail = email.trim().toLowerCase();
   try {
-    const existing = await db.query.usersTable.findFirst({ where: (u, { eq }) => eq(u.email, email) });
+    const existing = await db.query.usersTable.findFirst({ where: (u, { eq }) => eq(u.email, normalizedEmail) });
     if (existing) { res.status(400).json({ error: "Email already registered" }); return; }
     const password_hash = await bcrypt.hash(password, 10);
-    const [user] = await db.insert(usersTable).values({ name, email, password_hash }).returning();
+    const [user] = await db.insert(usersTable).values({ name, email: normalizedEmail, password_hash }).returning();
     const token = signJwt({ id: user.id, role: "user", email: user.email, name: user.name });
     res.status(201).json({ token, role: "user", id: user.id, name: user.name, email: user.email });
   } catch (err) {
@@ -33,12 +34,13 @@ router.post("/auth/register/merchant", async (req, res) => {
     res.status(400).json({ error: "Shop name, email, and password (min 8 chars) required" });
     return;
   }
+  const normalizedEmail = email.trim().toLowerCase();
   try {
-    const existing = await db.query.merchantsTable.findFirst({ where: (m, { eq }) => eq(m.email, email) });
+    const existing = await db.query.merchantsTable.findFirst({ where: (m, { eq }) => eq(m.email, normalizedEmail) });
     if (existing) { res.status(400).json({ error: "Email already registered" }); return; }
     const password_hash = await bcrypt.hash(password, 10);
     const kiosk_id = `KIOSK-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-    const [merchant] = await db.insert(merchantsTable).values({ shop_name, email, password_hash, kiosk_id }).returning();
+    const [merchant] = await db.insert(merchantsTable).values({ shop_name, email: normalizedEmail, password_hash, kiosk_id }).returning();
     const token = signJwt({ id: merchant.id, role: "merchant", email: merchant.email, name: merchant.shop_name });
     res.status(201).json({ token, role: "merchant", id: merchant.id, name: merchant.shop_name, email: merchant.email });
   } catch (err) {
@@ -49,8 +51,13 @@ router.post("/auth/register/merchant", async (req, res) => {
 
 router.post("/auth/login/user", async (req, res) => {
   const { email, password } = req.body as { email: string; password: string };
+  if (!email || !password) {
+    res.status(400).json({ error: "Email and password required" });
+    return;
+  }
+  const normalizedEmail = email.trim().toLowerCase();
   try {
-    const user = await db.query.usersTable.findFirst({ where: (u, { eq }) => eq(u.email, email) });
+    const user = await db.query.usersTable.findFirst({ where: (u, { eq }) => eq(u.email, normalizedEmail) });
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       res.status(401).json({ error: "Invalid credentials" }); return;
     }
@@ -64,8 +71,13 @@ router.post("/auth/login/user", async (req, res) => {
 
 router.post("/auth/login/merchant", async (req, res) => {
   const { email, password } = req.body as { email: string; password: string };
+  if (!email || !password) {
+    res.status(400).json({ error: "Email and password required" });
+    return;
+  }
+  const normalizedEmail = email.trim().toLowerCase();
   try {
-    const merchant = await db.query.merchantsTable.findFirst({ where: (m, { eq }) => eq(m.email, email) });
+    const merchant = await db.query.merchantsTable.findFirst({ where: (m, { eq }) => eq(m.email, normalizedEmail) });
     if (!merchant || !(await bcrypt.compare(password, merchant.password_hash))) {
       res.status(401).json({ error: "Invalid credentials" }); return;
     }
@@ -79,8 +91,13 @@ router.post("/auth/login/merchant", async (req, res) => {
 
 router.post("/auth/login/admin", async (req, res) => {
   const { email, password } = req.body as { email: string; password: string };
+  if (!email || !password) {
+    res.status(400).json({ error: "Email and password required" });
+    return;
+  }
+  const normalizedEmail = email.trim().toLowerCase();
   try {
-    const admin = await db.query.adminsTable.findFirst({ where: (a, { eq }) => eq(a.email, email) });
+    const admin = await db.query.adminsTable.findFirst({ where: (a, { eq }) => eq(a.email, normalizedEmail) });
     if (!admin || !(await bcrypt.compare(password, admin.password_hash))) {
       res.status(401).json({ error: "Invalid credentials" }); return;
     }

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { db, usersTable } from "./lib/db/src/index";
+import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 async function main() {
@@ -22,7 +23,7 @@ async function main() {
           is_verified: true,
           wallet_balance: "1000.00"
         })
-        .where({ id: existing.id });
+        .where(eq(usersTable.id, existing.id));
       console.log("Updated existing user to have correct biometric template and balance.");
       return;
     }

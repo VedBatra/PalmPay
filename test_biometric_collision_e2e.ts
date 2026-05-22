@@ -1,7 +1,7 @@
 import axios from "axios";
 import { db } from "./lib/db/src/index";
 import { usersTable, merchantsTable } from "./lib/db/src/index";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 // Helper to generate a 256-character hex string representing a valid 32x32 biometric template
@@ -86,7 +86,8 @@ async function runCollisionTest() {
         is_verified: false,
         password_hash: passwordHash,
         wallet_balance: "1000.00"
-      });
+      })
+      .where(inArray(usersTable.email, ["pratap@bio.dev", "harrsh@bio.dev"]));
 
     // We have Pratap (id=9 or similar), harrsh (id=8 or similar), and Ved (id=6 or similar) in seed data.
     // Let's fetch Pratap and harrsh from the DB to enroll them.

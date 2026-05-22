@@ -30,17 +30,65 @@ export function hexToBits(hex: string): boolean[] {
 export function computeJaccardSimilarity(hex1: string, hex2: string): number {
   const bits1 = hexToBits(hex1);
   const bits2 = hexToBits(hex2);
-  let match = 0;
-  let union = 0;
-  const length = Math.min(bits1.length, bits2.length);
-  for (let i = 0; i < length; i++) {
-    if (bits1[i] || bits2[i]) {
-      union++;
-      if (bits1[i] && bits2[i]) {
-        match++;
+
+  // If they are not 32x32 templates (1024 bits = 256 hex chars), do standard Jaccard
+  if (bits1.length !== 1024 || bits2.length !== 1024) {
+    let match = 0;
+    let union = 0;
+    const length = Math.min(bits1.length, bits2.length);
+    for (let i = 0; i < length; i++) {
+      if (bits1[i] || bits2[i]) {
+        union++;
+        if (bits1[i] && bits2[i]) {
+          match++;
+        }
+      }
+    }
+    if (union === 0) return 0;
+    return match / union;
+  }
+
+  // 2D grid translation shift optimization to align genuine templates
+  let maxScore = 0;
+  
+  // We check translation shifts of grid1 in X (dx) and Y (dy) from -2 to 2 pixels
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      let match = 0;
+      let union = 0;
+      
+      for (let r = 0; r < 32; r++) {
+        const srcR = r - dy;
+        const inBoundsY = srcR >= 0 && srcR < 32;
+        
+        for (let c = 0; c < 32; c++) {
+          const srcC = c - dx;
+          const inBoundsX = srcC >= 0 && srcC < 32;
+          
+          const idx2 = r * 32 + c;
+          const val2 = bits2[idx2];
+          
+          // Shifted grid1 bit
+          const val1 = (inBoundsY && inBoundsX) ? bits1[srcR * 32 + srcC] : false;
+          
+          if (val1 || val2) {
+            union++;
+            if (val1 && val2) {
+              match++;
+            }
+          }
+        }
+      }
+      
+      if (union > 0) {
+        const score = match / union;
+        if (score > maxScore) {
+          maxScore = score;
+        }
       }
     }
   }
-  if (union === 0) return 0;
-  return match / union;
+  
+  return maxScore;
 }
+

@@ -108,7 +108,7 @@ router.post("/hardware/verify-scan", async (req, res) => {
       console.log(`  - Match Delta: ${delta.toFixed(4)}`);
 
       // Calibrated thresholds
-      const ABSOLUTE_THRESHOLD = 0.35;
+      const ABSOLUTE_THRESHOLD = 0.88; // Strictly require almost 90% Jaccard matching
       const MIN_DELTA = 0.08; // Require at least 0.08 separation between the best user and runner-up user
 
       if (bestScore >= ABSOLUTE_THRESHOLD && (userScores.length <= 1 || delta >= MIN_DELTA)) {
@@ -116,7 +116,7 @@ router.post("/hardware/verify-scan", async (req, res) => {
         console.log(`[verify-scan] Match SUCCESS! User: ${user?.name} (Score: ${bestScore.toFixed(4)}, Delta: ${delta.toFixed(4)})`);
       } else {
         if (bestScore < ABSOLUTE_THRESHOLD) {
-          console.log(`[verify-scan] Match FAILED. Best score ${bestScore.toFixed(4)} is below threshold ${ABSOLUTE_THRESHOLD}`);
+          console.log(`[verify-scan] Match FAILED. Best score ${bestScore.toFixed(4)} is below threshold ${ABSOLUTE_THRESHOLD} (almost 90% matching required)`);
         } else {
           console.log(`[verify-scan] Match FAILED. Match is ambiguous. Delta ${delta.toFixed(4)} is below safety margin ${MIN_DELTA}`);
         }
@@ -285,7 +285,7 @@ router.post("/hardware/register-scan", async (req, res) => {
             if (extTrimmed.length !== 256) continue;
             
             const score = computeJaccardSimilarity(newTrimmed, extTrimmed);
-            if (score >= 0.35) {
+            if (score >= 0.40) {
               console.log(`[register-scan] Collision detected! New template matches existing user ${candidate.name} (Score: ${score.toFixed(4)})`);
               activeEnrollments.delete(merchant_id);
               res.status(400).json({ error: "Biometric collision detected. This palm is already registered to another account." });

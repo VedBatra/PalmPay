@@ -69,9 +69,20 @@ def show_message(line1, line2=""):
         OLED_AVAILABLE = False
 
 def extract_biometric_hash(image_array):
-    gray     = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
+    gray_full = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
     
-    # 1. Brightness check (on raw grayscale)
+    # Crop to the central Region of Interest (ROI) (center 50% of width and height)
+    # This excludes outer hand contours, fingers, wrist, and background silhouette noise.
+    h, w = gray_full.shape
+    crop_h = int(h * 0.50)
+    crop_w = int(w * 0.50)
+    y1 = (h - crop_h) // 2
+    y2 = y1 + crop_h
+    x1 = (w - crop_w) // 2
+    x2 = x1 + crop_w
+    gray = gray_full[y1:y2, x1:x2]
+    
+    # 1. Brightness check (on cropped grayscale ROI)
     avg_brightness = gray.mean()
     print(f"Captured Frame Average Brightness: {avg_brightness:.2f}")
     if avg_brightness < 12.0:
@@ -80,43 +91,94 @@ def extract_biometric_hash(image_array):
     clahe    = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
     blurred  = cv2.GaussianBlur(enhanced, (5, 5), 0)
-    edges    = cv2.Canny(blurred, 50, 150)
     
-    # Mask out physical border noise/vignetting/lens boundaries (outer 15% of frame)
-    h, w = edges.shape
-    border_y = int(h * 0.15)
-    border_x = int(w * 0.15)
-    edges[0:border_y, :] = 0
-    edges[h-border_y:h, :] = 0
-    edges[:, 0:border_x] = 0
-    edges[:, w-border_x:w] = 0
+    # Adaptive Canny search loop to handle out-of-focus or macro blurred hand details
+    canny_pairs = [
+        (40, 120),  # Crisp/Sharp focus
+        (25, 75),   # Soft focus / Moderate lines
+        (15, 45),   # Blurry focus / Broad lines
+        (10, 30)    # Extremely out-of-focus / Macro blur fallback
+    ]
+    
+    edges = None
+    non_zero_edges = 0
+    selected_pair = None
+    
+    for lower, upper in canny_pairs:
+        temp_edges = cv2.Canny(blurred, lower, upper)
+        # Mask out physical border noise/vignetting/lens boundaries (outer 15% of frame)
+        h, w = temp_edges.shape
+        border_y = int(h * 0.15)
+        border_x = int(w * 0.15)
+        temp_edges[0:border_y, :] = 0
+        temp_edges[h-border_y:h, :] = 0
+        temp_edges[:, 0:border_x] = 0
+        temp_edges[:, w-border_x:w] = 0
+        
+        count = cv2.countNonZero(temp_edges)
+        print(f"Adaptive Canny ({lower}, {upper}): Edge count = {count}")
+        if count >= 1000:
+            edges = temp_edges
+            non_zero_edges = count
+            selected_pair = (lower, upper)
+            break
+            
+    if edges is None:
+        # Fallback to the lowest threshold pair to capture any soft contours
+        print("Adaptive Canny: No threshold met >= 1000 edges. Falling back to (10, 30).")
+        edges = cv2.Canny(blurred, 10, 30)
+        h, w = edges.shape
+        border_y = int(h * 0.15)
+        border_x = int(w * 0.15)
+        edges[0:border_y, :] = 0
+        edges[h-border_y:h, :] = 0
+        edges[:, 0:border_x] = 0
+        edges[:, w-border_x:w] = 0
+        non_zero_edges = cv2.countNonZero(edges)
+        selected_pair = (10, 30)
+        
+    print(f"Final Selected Canny thresholds: {selected_pair} resulting in {non_zero_edges} edges")
     
     # 2. Edge Density Check
-    non_zero_edges = cv2.countNonZero(edges)
-    print(f"Captured Frame Edge Count: {non_zero_edges}")
-    
     # Resolution is 2592x1944. Calibrated threshold for IR-illuminated palm captures.
     if non_zero_edges < 1000:
         raise ValueError("Insufficient Detail - Align Palm")
         
-    # 3. Dynamic Top-K Spatial Edge Grid Downsampling (for robust multi-user physical pattern matching)
-    # This prevents the template from becoming fully saturated (all ones) when Canny edge count is very high.
+    # 3. Line-Selective Downsampling and Adaptive Peak-Density Binarization
+    # This replaces the vulnerable "Top-K" silhouette sorting strategy.
+    # By using a threshold relative to the peak edge density of that specific scan,
+    # we ensure that the template represents a sparse set of unique palm wrinkles/lines,
+    # completely eliminating false-positive silhouette collisions.
     resized = cv2.resize(edges, (32, 32), interpolation=cv2.INTER_AREA)
     flat_resized = resized.flatten()
     
-    # Sort indices in ascending order
-    sorted_indices = np.argsort(flat_resized)
+    # Mask borders in the 32x32 grid as well to prevent border artifacts from generating active bits
+    grid_32 = flat_resized.reshape((32, 32))
+    h_32, w_32 = grid_32.shape
+    gb_y = int(h_32 * 0.15)
+    gb_x = int(w_32 * 0.15)
+    grid_32[0:gb_y, :] = 0
+    grid_32[h_32-gb_y:h_32, :] = 0
+    grid_32[:, 0:gb_x] = 0
+    grid_32[:, w_32-gb_x:w_32] = 0
+    flat_grid = grid_32.flatten()
     
-    # Select the top 15% (153 out of 1024) densest cells
+    # Measure the peak local edge density
+    peak_density = np.max(flat_grid)
+    print(f"Downsampled grid peak density: {peak_density:.2f}")
+    
+    # Apply a relative threshold (50% of the peak local density)
+    # with a minimum absolute density floor of 10.0 to filter out flat skin texture / noise
+    threshold = max(peak_density * 0.50, 10.0)
+    print(f"Applying selective line density threshold: {threshold:.2f}")
+    
     num_cells = 1024
-    k_percent = 15
-    num_ones = int(num_cells * (k_percent / 100.0))
-    
     flat = np.zeros(num_cells, dtype=int)
-    top_indices = sorted_indices[-num_ones:]
-    for idx in top_indices:
-        if flat_resized[idx] > 0:
+    for idx in range(num_cells):
+        if flat_grid[idx] >= threshold:
             flat[idx] = 1
+            
+    print(f"Template binarization completed: {np.sum(flat)} active bits out of 1024")
     
     # Pack 1024 bits into 128 bytes
     packed_bytes = bytearray()
@@ -135,14 +197,25 @@ def capture_frame_with_leds():
     # Turn on IR LEDs
     for pin in IR_LED_PINS:
         GPIO.output(pin, GPIO.HIGH)
-    time.sleep(0.2) # Allow LEDs to fully power on and sensor to detect lighting transition
+    time.sleep(0.25) # Allow LEDs to fully power on and sensor to detect lighting transition
     try:
-        # Capture 3 throwaway frames to allow Auto Exposure Control (AEC/AGC) to adapt to the bright IR LEDs
-        for _ in range(3):
-            _ = camera.capture_array()
+        frame = None
+        # We try up to 10 captures to let Auto Exposure (AEC/AGC) converge on a well-exposed frame
+        for attempt in range(1, 11):
+            temp_frame = camera.capture_array()
+            gray = cv2.cvtColor(temp_frame, cv2.COLOR_BGR2GRAY)
+            brightness = gray.mean()
+            print(f"Exposure check attempt {attempt}: mean brightness = {brightness:.2f}")
+            # Target brightness range: 30.0 to 215.0
+            if 30.0 <= brightness <= 215.0:
+                frame = temp_frame
+                print(f"Exposure converged on attempt {attempt} with brightness {brightness:.2f}")
+                break
             time.sleep(0.05)
-        # Capture the final perfectly exposed frame
-        frame = camera.capture_array()
+        if frame is None:
+            # Fallback to the last captured frame
+            print("WARNING: Exposure did not converge, using last captured frame.")
+            frame = temp_frame
     finally:
         # Turn off IR LEDs
         for pin in IR_LED_PINS:

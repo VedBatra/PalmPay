@@ -121,7 +121,7 @@ router.post("/users/me/biometric", requireAuth(["user"]), async (req, res) => {
             if (extTrimmed.length !== 256) continue;
             
             const score = computeJaccardSimilarity(newTrimmed, extTrimmed);
-            if (score >= 0.35) {
+            if (score >= 0.40) {
               console.log(`[register-biometric] Collision detected! New template matches existing user ${candidate.name} (Score: ${score.toFixed(4)})`);
               res.status(400).json({ error: "Biometric collision detected. This palm is already registered to another account." });
               return;

@@ -230,12 +230,13 @@ def send_heartbeat():
     except Exception as e:
         print(f"Heartbeat failed: {e}")
 
-def verify_payment(bio_hash, amount):
+def verify_payment(bio_hash, amount, is_final=True):
     try:
         r = requests.post(f"{API_SERVER}/api/hardware/verify-scan",
                           json={"biometric_hash": bio_hash,
                                 "merchant_id": int(MERCHANT_ID),
-                                "amount": amount}, timeout=10)
+                                "amount": amount,
+                                "is_final": is_final}, timeout=10)
         return r.json()
     except requests.exceptions.ConnectionError:
         return {"success": False, "message": "Server unreachable"}
@@ -345,9 +346,8 @@ def run_scan_sequence(amount, immediate=False):
             time.sleep(1)
             continue
             
-        print(f"Transmitted Hash: {actual_hash}")
-        
-        result = verify_payment(actual_hash, amount)
+        is_final = (attempt == max_retries)
+        result = verify_payment(actual_hash, amount, is_final=is_final)
         error_msg = result.get("error") or result.get("message") or "Try again"
         
         if result.get("success"):

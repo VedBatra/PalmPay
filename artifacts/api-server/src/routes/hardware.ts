@@ -20,10 +20,11 @@ router.get("/hardware/active-session/:merchant_id", async (req, res) => {
 });
 
 router.post("/hardware/verify-scan", async (req, res) => {
-  let { biometric_hash, merchant_id, amount } = req.body as {
+  let { biometric_hash, merchant_id, amount, is_final } = req.body as {
     biometric_hash: string;
     merchant_id: number | string;
     amount: number;
+    is_final?: boolean;
   };
   merchant_id = Number(merchant_id);
 
@@ -124,7 +125,9 @@ router.post("/hardware/verify-scan", async (req, res) => {
     }
 
     if (!user) {
-      emitToMerchant(merchant_id, "payment:failed", { error: "Biometric not recognized" });
+      if (is_final !== false) {
+        emitToMerchant(merchant_id, "payment:failed", { error: "Biometric not recognized" });
+      }
       res.status(404).json({ error: "No user found matching this biometric" });
       return;
     }

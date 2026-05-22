@@ -135,8 +135,13 @@ def capture_frame_with_leds():
     # Turn on IR LEDs
     for pin in IR_LED_PINS:
         GPIO.output(pin, GPIO.HIGH)
-    time.sleep(0.15) # Allow LEDs to fully power on and sensor to adjust exposure
+    time.sleep(0.2) # Allow LEDs to fully power on and sensor to detect lighting transition
     try:
+        # Capture 3 throwaway frames to allow Auto Exposure Control (AEC/AGC) to adapt to the bright IR LEDs
+        for _ in range(3):
+            _ = camera.capture_array()
+            time.sleep(0.05)
+        # Capture the final perfectly exposed frame
         frame = camera.capture_array()
     finally:
         # Turn off IR LEDs

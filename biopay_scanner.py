@@ -363,7 +363,7 @@ def run_scan_sequence(amount, immediate=False):
         # Check if we should stop retrying (e.g., insufficient balance)
         if "balance" in error_msg.lower():
             init_oled(force=True)
-            show_message("FAILED", error_msg[:20])
+            show_message("FAILED", "Not recognized")
             print(f"Failed (No Retry): {error_msg}")
             time.sleep(4)
             return False

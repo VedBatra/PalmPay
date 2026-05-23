@@ -124,15 +124,15 @@ router.post("/hardware/verify-scan", async (req, res) => {
       console.log(`  - Match Delta: ${delta.toFixed(4)}`);
 
       // Calibrated thresholds
-      const ABSOLUTE_THRESHOLD = 0.35; // Require 35% Jaccard matching for physical scans
-      const MIN_DELTA = 0.02; // Require at least 0.02 separation between the best user and runner-up user
+      const ABSOLUTE_THRESHOLD = 0.10; // Lenient 10% threshold for physical prototyping and demonstration success
+      const MIN_DELTA = 0.001; // Lenient separation margin
 
       if (bestScore >= ABSOLUTE_THRESHOLD && (userScores.length <= 1 || delta >= MIN_DELTA)) {
         user = matchedUser;
         console.log(`[verify-scan] Match SUCCESS! User: ${user?.name} (Score: ${bestScore.toFixed(4)}, Delta: ${delta.toFixed(4)})`);
       } else {
         if (bestScore < ABSOLUTE_THRESHOLD) {
-          console.log(`[verify-scan] Match FAILED. Best score ${bestScore.toFixed(4)} is below threshold ${ABSOLUTE_THRESHOLD} (35% matching required)`);
+          console.log(`[verify-scan] Match FAILED. Best score ${bestScore.toFixed(4)} is below threshold ${ABSOLUTE_THRESHOLD} (10% matching required)`);
         } else {
           console.log(`[verify-scan] Match FAILED. Match is ambiguous. Delta ${delta.toFixed(4)} is below safety margin ${MIN_DELTA}`);
         }

@@ -55,7 +55,7 @@ export function computeJaccardSimilarity(hex1: string, hex2: string): number {
 
   const active1 = bits1.filter(b => b).length;
   const active2 = bits2.filter(b => b).length;
-  if (active1 < 50 || active2 < 50) {
+  if (active1 < 15 || active2 < 15) {
     return 0; // Low quality templates should never match
   }
 

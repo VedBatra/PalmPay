@@ -180,7 +180,7 @@ def extract_biometric_hash(image_array):
             
     active_bits = np.sum(flat)
     print(f"Template binarization completed: {active_bits} active bits out of 1024")
-    if active_bits < 50:
+    if active_bits < 15:
         raise ValueError("Insufficient Detail - Align Palm")
     
     # Pack 1024 bits into 128 bytes

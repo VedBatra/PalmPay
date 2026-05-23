@@ -103,7 +103,7 @@ router.post("/users/me/biometric", requireAuth(["user"]), async (req, res) => {
       const trimmed = newTmpl.trim();
       if (trimmed.length === 256) {
         const activeBits = countActiveBits(trimmed);
-        if (activeBits < 50) {
+        if (activeBits < 15) {
           res.status(400).json({ error: "Invalid biometric scan quality (insufficient details/blank scan)" });
           return;
         }

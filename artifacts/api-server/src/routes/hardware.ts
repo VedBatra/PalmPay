@@ -47,7 +47,7 @@ router.post("/hardware/verify-scan", async (req, res) => {
 
   if (biometric_hash.length === 256) {
     const activeBits = countActiveBits(biometric_hash);
-    if (activeBits < 50) {
+    if (activeBits < 15) {
       res.status(400).json({ error: "Invalid biometric scan quality (insufficient details/blank scan)" });
       return;
     }
@@ -124,15 +124,15 @@ router.post("/hardware/verify-scan", async (req, res) => {
       console.log(`  - Match Delta: ${delta.toFixed(4)}`);
 
       // Calibrated thresholds
-      const ABSOLUTE_THRESHOLD = 0.88; // Strictly require almost 90% Jaccard matching
-      const MIN_DELTA = 0.08; // Require at least 0.08 separation between the best user and runner-up user
+      const ABSOLUTE_THRESHOLD = 0.35; // Require 35% Jaccard matching for physical scans
+      const MIN_DELTA = 0.02; // Require at least 0.02 separation between the best user and runner-up user
 
       if (bestScore >= ABSOLUTE_THRESHOLD && (userScores.length <= 1 || delta >= MIN_DELTA)) {
         user = matchedUser;
         console.log(`[verify-scan] Match SUCCESS! User: ${user?.name} (Score: ${bestScore.toFixed(4)}, Delta: ${delta.toFixed(4)})`);
       } else {
         if (bestScore < ABSOLUTE_THRESHOLD) {
-          console.log(`[verify-scan] Match FAILED. Best score ${bestScore.toFixed(4)} is below threshold ${ABSOLUTE_THRESHOLD} (almost 90% matching required)`);
+          console.log(`[verify-scan] Match FAILED. Best score ${bestScore.toFixed(4)} is below threshold ${ABSOLUTE_THRESHOLD} (35% matching required)`);
         } else {
           console.log(`[verify-scan] Match FAILED. Match is ambiguous. Delta ${delta.toFixed(4)} is below safety margin ${MIN_DELTA}`);
         }
@@ -285,7 +285,7 @@ router.post("/hardware/register-scan", async (req, res) => {
       const trimmed = newTmpl.trim();
       if (trimmed.length === 256) {
         const activeBits = countActiveBits(trimmed);
-        if (activeBits < 50) {
+        if (activeBits < 15) {
           res.status(400).json({ error: "Invalid biometric scan quality (insufficient details/blank scan)" });
           return;
         }

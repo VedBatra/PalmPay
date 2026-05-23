@@ -554,7 +554,29 @@ try:
         active_pay, amount, pay_session_id = check_active_session()
         active_enroll, user_name, enroll_session_id = check_active_enrollment()
         
-        if active_pay:
+        if active_enroll:
+            # We have an active enrollment session!
+            is_new = (enroll_session_id != last_processed_session_id or last_processed_session_type != 'ENROLL')
+            
+            if is_new or (ir_triggered and last_session_failed):
+                if is_new:
+                    print(f"New enrollment session detected: {enroll_session_id} for {user_name}")
+                    last_processed_session_id = enroll_session_id
+                    last_processed_session_type = 'ENROLL'
+                    last_session_failed = False
+                    success = run_enrollment_sequence(user_name, immediate=False)
+                else:
+                    print(f"IR sensor triggered retry for active enrollment session: {enroll_session_id}")
+                    success = run_enrollment_sequence(user_name, immediate=True)
+                
+                last_session_failed = not success
+                init_oled(force=True)
+                show_message("Ready", "Place Palm to Pay")
+            else:
+                # Same session, no physical trigger, wait silently
+                pass
+                
+        elif active_pay:
             # We have a pending payment session!
             is_new = (pay_session_id != last_processed_session_id or last_processed_session_type != 'PAY')
             
@@ -573,28 +595,6 @@ try:
                     print(f"IR sensor triggered retry for active payment session: {pay_session_id}")
                     # For physical trigger, start scan immediately
                     success = run_scan_sequence(amount, immediate=True)
-                
-                last_session_failed = not success
-                init_oled(force=True)
-                show_message("Ready", "Place Palm to Pay")
-            else:
-                # Same session, no physical trigger, wait silently
-                pass
-                
-        elif active_enroll:
-            # We have an active enrollment session!
-            is_new = (enroll_session_id != last_processed_session_id or last_processed_session_type != 'ENROLL')
-            
-            if is_new or (ir_triggered and last_session_failed):
-                if is_new:
-                    print(f"New enrollment session detected: {enroll_session_id} for {user_name}")
-                    last_processed_session_id = enroll_session_id
-                    last_processed_session_type = 'ENROLL'
-                    last_session_failed = False
-                    success = run_enrollment_sequence(user_name, immediate=False)
-                else:
-                    print(f"IR sensor triggered retry for active enrollment session: {enroll_session_id}")
-                    success = run_enrollment_sequence(user_name, immediate=True)
                 
                 last_session_failed = not success
                 init_oled(force=True)

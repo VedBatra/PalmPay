@@ -8,7 +8,7 @@ import { isBlacklisted, computeJaccardSimilarity, countActiveBits } from "../lib
 
 const router = Router();
 
-export const activeEnrollments = new Map<number, { session_id: string; user_id: number; status: string }>();
+export const activeEnrollments = new Map<number, { session_id: string; user_id: number; status: string; created_at?: number }>();
 
 router.get("/users/me", requireAuth(["user"]), async (req, res) => {
   try {
@@ -74,7 +74,7 @@ router.post("/users/me/biometric/initiate", requireAuth(["user"]), async (req, r
   try {
     const session_id = crypto.randomBytes(8).toString("hex");
     // Defaulting to kiosk 1 (matching merchant 1)
-    activeEnrollments.set(1, { session_id, user_id: req.user!.id, status: "WAITING" });
+    activeEnrollments.set(1, { session_id, user_id: req.user!.id, status: "WAITING", created_at: Date.now() });
     res.json({ session_id, status: "WAITING", message: "Awaiting kiosk palm scan..." });
   } catch (err) {
     req.log.error(err);

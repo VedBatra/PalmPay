@@ -105,14 +105,14 @@ router.get("/merchants/me/earnings/summary", requireAuth(["merchant"]), async (r
   }
 });
 
-const activeSessions = new Map<number, { session_id: string; amount: number; status: string }>();
+const activeSessions = new Map<number, { session_id: string; amount: number; status: string; created_at?: number }>();
 
 router.post("/merchants/me/pos/initiate", requireAuth(["merchant"]), async (req, res) => {
   const { amount } = req.body as { amount: number };
   if (!amount || amount < 1) { res.status(400).json({ error: "Amount must be at least ₹1" }); return; }
   try {
     const session_id = crypto.randomBytes(8).toString("hex");
-    activeSessions.set(req.user!.id, { session_id, amount, status: "WAITING" });
+    activeSessions.set(req.user!.id, { session_id, amount, status: "WAITING", created_at: Date.now() });
     emitToMerchant(req.user!.id, "payment:waiting", { session_id, amount });
     res.json({ session_id, amount, status: "WAITING", message: "Awaiting palm scan..." });
   } catch (err) {

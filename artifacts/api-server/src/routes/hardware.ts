@@ -13,7 +13,14 @@ router.get("/hardware/active-session/:merchant_id", async (req, res) => {
   const merchant_id = Number(req.params.merchant_id);
   const session = activeSessions.get(merchant_id);
   if (session && session.status === "WAITING") {
-    res.json({ active: true, amount: session.amount, session_id: session.session_id });
+    const sessionAge = Date.now() - (session.created_at || 0);
+    if (sessionAge > 60000) { // 60 seconds timeout
+      activeSessions.delete(merchant_id);
+      emitToMerchant(merchant_id, "payment:failed", { error: "Transaction timed out" });
+      res.json({ active: false });
+    } else {
+      res.json({ active: true, amount: session.amount, session_id: session.session_id });
+    }
   } else {
     res.json({ active: false });
   }
@@ -235,13 +242,19 @@ router.get("/hardware/active-enrollment/:merchant_id", async (req, res) => {
   const merchant_id = Number(req.params.merchant_id);
   const session = activeEnrollments.get(merchant_id);
   if (session && session.status === "WAITING") {
-    try {
-      const user = await db.query.usersTable.findFirst({
-        where: (u, { eq }) => eq(u.id, session.user_id),
-      });
-      res.json({ active: true, user_name: user?.name || "User", session_id: session.session_id });
-    } catch (err) {
-      res.status(500).json({ error: "Failed to query enrollment user" });
+    const sessionAge = Date.now() - (session.created_at || 0);
+    if (sessionAge > 120000) { // 120 seconds timeout
+      activeEnrollments.delete(merchant_id);
+      res.json({ active: false });
+    } else {
+      try {
+        const user = await db.query.usersTable.findFirst({
+          where: (u, { eq }) => eq(u.id, session.user_id),
+        });
+        res.json({ active: true, user_name: user?.name || "User", session_id: session.session_id });
+      } catch (err) {
+        res.status(500).json({ error: "Failed to query enrollment user" });
+      }
     }
   } else {
     res.json({ active: false });

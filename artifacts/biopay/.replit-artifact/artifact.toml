@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "BioPay"
+version = "1.0.0"
+id = "artifacts/biopay"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18682
+
+[services.development]
+run = "pnpm --filter @workspace/biopay run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/biopay", "run", "build" ]
+publicDir = "artifacts/biopay/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18682"
+BASE_PATH = "/"
